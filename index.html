@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ddd5c8">
+  <meta name="description" content="Woolands – a cozy idle game about bringing a barren valley back to life for tiny sheep.">
+  <title>Woolands</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script>
+    // Pick the theme before first paint, so dark mode doesn't flash light.
+    try {
+      const t = localStorage.getItem('woolands.theme') || 'auto';
+      document.documentElement.dataset.theme = t === 'auto' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : t;
+    } catch { /* ignore */ }
+  </script>
+</head>
+<body>
+  <canvas id="world" aria-label="The valley"></canvas>
+
+  <header class="hud">
+    <div class="hud-left">
+      <div class="panel stat" title="Life">
+        <img class="icon" data-icon="life" alt="">
+        <span class="stack"><b id="life">0</b><small id="rate">+0/s</small></span>
+      </div>
+      <div class="panel still" title="Stillness: builds while you leave the valley be">
+        <span class="still-label">Still</span>
+        <span class="bar"><i id="stillBar"></i></span>
+        <b id="stillMult">×1.0</b>
+      </div>
+    </div>
+    <div class="hud-right">
+      <div class="panel stat" title="Flock">
+        <img class="icon" data-icon="sheep" alt="">
+        <b id="flock">0</b>
+      </div>
+      <button id="focusBtn" class="panel btn icon-btn" type="button" aria-label="Focus" title="Focus">
+        <img class="icon" data-icon="hourglass" alt="">
+      </button>
+      <button id="journalBtn" class="panel btn icon-btn" type="button" aria-label="Journal" title="Journal">
+        <img class="icon" data-icon="book" alt="">
+      </button>
+      <button id="themeBtn" class="panel btn icon-btn" type="button" aria-label="Dark mode" title="Dark mode">
+        <img class="icon" alt="">
+      </button>
+      <button id="menuBtn" class="panel btn icon-btn" type="button" aria-label="Menu" title="Menu">
+        <span class="burger"></span>
+      </button>
+    </div>
+  </header>
+
+  <div id="toasts" aria-live="polite"></div>
+
+  <footer class="dock">
+    <button id="focusPill" class="panel pill" type="button" hidden>
+      <img class="icon" data-icon="hourglass" alt="">
+      <b id="focusTime">25:00</b>
+      <span class="bar"><i id="focusBar"></i></span>
+    </button>
+    <nav id="tools" class="panel" aria-label="Tools"></nav>
+  </footer>
+
+  <!-- Focus -->
+  <dialog id="focusDlg" class="panel">
+    <form method="dialog" class="dlg-head">
+      <h2>Focus</h2>
+      <button class="btn small" aria-label="Close">✕</button>
+    </form>
+    <div id="focusIdle">
+      <p class="hint">Set a timer and leave the valley be. Stillness builds twice as fast, and when the time is up the flock comes home from a long wander with something to show you.</p>
+      <div class="chips" id="focusChips"></div>
+      <div class="row end"><button id="focusStart" class="btn primary" type="button">Begin</button></div>
+    </div>
+    <div id="focusActive" hidden>
+      <p class="big" id="focusDlgTime">25:00</p>
+      <p class="hint">left in this session. The sun sets when it ends.</p>
+      <div class="row end"><button id="focusCancel" class="btn" type="button">End early</button></div>
+    </div>
+  </dialog>
+
+  <!-- Upgrades -->
+  <dialog id="upgradesDlg" class="panel">
+    <form method="dialog" class="dlg-head">
+      <h2>Upgrades</h2>
+      <button class="btn small" aria-label="Close">✕</button>
+    </form>
+    <p class="hint">Life: <b id="upLife">0</b></p>
+    <ul id="upgradeList" class="list"></ul>
+  </dialog>
+
+  <!-- Journal -->
+  <dialog id="journalDlg" class="panel">
+    <form method="dialog" class="dlg-head">
+      <h2>Journal</h2>
+      <button class="btn small" aria-label="Close">✕</button>
+    </form>
+    <ol id="journalList" class="list journal"></ol>
+  </dialog>
+
+  <!-- Menu -->
+  <dialog id="menu" class="panel">
+    <form method="dialog" class="dlg-head">
+      <h2>Woolands</h2>
+      <button class="btn small" aria-label="Close">✕</button>
+    </form>
+
+    <section>
+      <h3>Your valley</h3>
+      <dl id="stats"></dl>
+    </section>
+
+    <section>
+      <h3>Sky</h3>
+      <div class="chips" id="skyChips">
+        <button class="chip" type="button" data-sky="valley">Valley time</button>
+        <button class="chip" type="button" data-sky="real">Real time</button>
+      </div>
+      <p class="hint" id="skyHint"></p>
+    </section>
+
+    <section>
+      <h3>Look</h3>
+      <div class="chips" id="themeChips">
+        <button class="chip" type="button" data-theme="auto">Auto</button>
+        <button class="chip" type="button" data-theme="light">Light</button>
+        <button class="chip" type="button" data-theme="dark">Dark</button>
+      </div>
+      <p class="hint">Auto follows your device. The moon/sun button next to the menu switches quickly.</p>
+    </section>
+
+    <section>
+      <h3>Take your valley with you</h3>
+      <p class="hint">Copy this save string and paste it into Woolands on another device.</p>
+      <textarea id="exportText" readonly rows="3" spellcheck="false"></textarea>
+      <div class="row">
+        <button id="copyBtn" class="btn" type="button">Copy</button>
+        <button id="shareBtn" class="btn" type="button">Share</button>
+        <button id="downloadBtn" class="btn" type="button">Download</button>
+      </div>
+    </section>
+
+    <section>
+      <h3>Load a valley</h3>
+      <textarea id="importText" rows="3" spellcheck="false" placeholder="Paste a save string…"></textarea>
+      <div class="row">
+        <button id="importBtn" class="btn" type="button">Load string</button>
+        <label class="btn">Load file<input id="fileInput" type="file" accept=".woolands,.txt,text/plain" hidden></label>
+      </div>
+    </section>
+
+    <section>
+      <h3>Start over</h3>
+      <button id="resetBtn" class="btn danger" type="button">Begin a new valley</button>
+    </section>
+  </dialog>
+
+  <!-- Return / session report -->
+  <dialog id="report" class="panel">
+    <h2 id="reportTitle">While you were away</h2>
+    <div id="reportText"></div>
+    <ol id="reportList" class="list journal"></ol>
+    <form method="dialog" class="row end"><button class="btn primary">Lovely</button></form>
+  </dialog>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
